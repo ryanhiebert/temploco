@@ -1,3 +1,4 @@
 Django
 django-cmd
-Jinja2
+django-stubs
+pyright
