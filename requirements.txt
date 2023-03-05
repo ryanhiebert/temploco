@@ -1,4 +1,5 @@
 Django
 django-cmd
-django-stubs
+django-types
 pyright
+black
