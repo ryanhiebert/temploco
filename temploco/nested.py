@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Callable, Optional
-from django.http import HttpResponse
+from django.http import HttpRequest, HttpResponse
 from django.urls.resolvers import URLPattern
 from django.urls import path
 
@@ -35,24 +35,27 @@ class Layout:
 
     """
 
-    def __init__(self, prelude: str, postlude: str):
-        self.__prelude = prelude
-        self.__postlude = postlude
+    def __init__(self, pre: str, post: str):
+        self.__pre = pre
+        self.__post = post
 
     def fill(self, content: Content) -> Content:
-        return Content(''.join([self.__prelude, str(content), self.__postlude]))
+        return Content("".join([self.__pre, str(content), self.__post]))
 
 
 class Route:
     def __init__(
-            self,
-            *,
-            path: str = "",
-            view: Optional[Callable[..., Layout | Content]] = None,
-            children: Optional[list[Route]] = None
-        ):
+        self,
+        *,
+        path: str = "",
+        view: Optional[Callable[..., Layout | Content]] = None,
+        children: Optional[list[Route]] = None,
+    ):
+        def noop_view(request: HttpRequest) -> Layout:
+            return Layout("", "")
+
         self.path = path
-        self.view = view
+        self.view = view or noop_view
         self.children = children or []
 
     def __route_chains(self: Route) -> list[list[Route]]:
@@ -65,29 +68,40 @@ class Route:
             ]
         return [[self]]
 
+    @staticmethod
+    def __create_path(routes: list[Route]) -> str:
+        return "".join(route.path for route in routes)
+
+    @staticmethod
+    def __create_view(routes: list[Route]) -> Callable[..., HttpResponse]:
+        def routeview(request: HttpRequest) -> HttpResponse:
+            content: Content = Content("")
+            layouts: list[Layout] = []
+            for route in routes:
+                response = route.view(request)
+                if isinstance(response, Content):
+                    content = response
+                    break
+                layouts.append(response)
+            for layout in reversed(layouts):
+                content = layout.fill(content)
+            return HttpResponse(str(content))
+
+        return routeview
 
     def urlpatterns(self) -> list[URLPattern]:
         """Construct url patterns to include in the URLConf."""
-        def create_view(routes: list[Route]) -> Callable[..., HttpResponse]:
-            def routeview() -> HttpResponse:
-                raise NotImplementedError
-            return routeview
-
-        def create_path(routes: list[Route]) -> str:
-            return ''.join(route.path for route in routes)
-
         return [
-            path(create_path(routes), create_view(routes))
+            path(self.__create_path(routes), self.__create_view(routes))
             for routes in self.__route_chains()
         ]
 
 
 route = Route(
-    path='',
-    view=lambda: Layout('<root>', '</root>'),
+    view=lambda r: Layout("&lt;root&gt;", "&lt;/root&gt;"),
     children=[
-        Route(path='<int:x>', view=lambda: Content('x')),
-        Route(path='<int:y>', view=lambda: Content('y')),
+        Route(path="x/", view=lambda r: Content("x")),
+        Route(path="y/", view=lambda r: Content("y")),
     ],
 )
 
