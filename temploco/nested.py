@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Callable, Optional
+from typing import Callable, Optional, Any
 from django.http import HttpRequest, HttpResponse
-from django.urls.resolvers import URLPattern
-from django.urls import path
+from django.urls.resolvers import URLPattern, URLResolver
+from django.urls import path, include
 
 
 class Content:
@@ -17,11 +17,11 @@ class Content:
     Or perhaps should it be a special response subclass?
     """
 
-    def __init__(self, text: str):
-        self.__text = text
+    def __init__(self, text: str = ""):
+        self.text = text
 
     def __str__(self):
-        return self.__text
+        return self.text
 
 
 class Layout:
@@ -33,14 +33,16 @@ class Layout:
     Can the layout be a standard response and we find and replace a token?
     Or perhaps we have a special `LayoutResponse` response subclass?
 
+    I don't think that the layout needs to be able to add any response
+    parameters or anything. Seems like the child may be able to handle
+    all of that by itself. So layouts may not need to be a response at
+    all, while content might just be a response, or might be a signal
+    subclass of response.
     """
 
-    def __init__(self, pre: str, post: str):
-        self.__pre = pre
-        self.__post = post
-
-    def fill(self, content: Content) -> Content:
-        return Content("".join([self.__pre, str(content), self.__post]))
+    def __init__(self, pre: str = "", post: str = "", /):
+        self.pre = pre
+        self.post = post
 
 
 class Route:
@@ -51,50 +53,52 @@ class Route:
         view: Optional[Callable[..., Layout | Content]] = None,
         children: Optional[list[Route]] = None,
     ):
-        def noop_view(request: HttpRequest) -> Layout:
-            return Layout("", "")
+        def noop_view(request: HttpRequest, /, **kwargs: Any) -> Layout:
+            return Layout()
 
-        self.path = path
-        self.view = view or noop_view
-        self.children = children or []
+        self.__path = path
+        self.__view = view or noop_view
+        self.__children = children or []
 
-    def __route_chains(self: Route) -> list[list[Route]]:
-        """Get the full and complete chain of routes."""
-        if self.children:
-            return [
-                [self] + routes
-                for child in self.children
-                for routes in child.__route_chains()
-            ]
-        return [[self]]
+    def __resolver(
+        self, resolve_parent: Optional[Callable[..., Layout | Content]] = None, /
+    ) -> Callable[..., Layout | Content]:
+        def resolve(request: HttpRequest, **kwargs: Any) -> Layout | Content:
+            parent = resolve_parent(request, **kwargs) if resolve_parent else Layout()
+            if isinstance(parent, Content):
+                return parent
+            resolved = self.__view(request, **kwargs)
+            if isinstance(resolved, Layout):
+                return Layout(parent.pre + resolved.pre, parent.post + resolved.post)
+            return Content("".join([parent.pre, resolved.text, parent.post]))
+
+        return resolve
 
     @staticmethod
-    def __create_path(routes: list[Route]) -> str:
-        return "".join(route.path for route in routes)
-
-    @staticmethod
-    def __create_view(routes: list[Route]) -> Callable[..., HttpResponse]:
-        def routeview(request: HttpRequest) -> HttpResponse:
-            content: Content = Content("")
-            layouts: list[Layout] = []
-            for route in routes:
-                response = route.view(request)
-                if isinstance(response, Content):
-                    content = response
-                    break
-                layouts.append(response)
-            for layout in reversed(layouts):
-                content = layout.fill(content)
-            return HttpResponse(str(content))
+    def __create_view(
+        resolve: Callable[..., Layout | Content]
+    ) -> Callable[..., HttpResponse]:
+        def routeview(request: HttpRequest, **kwargs: Any) -> HttpResponse:
+            resolved = resolve(request, **kwargs)
+            if isinstance(resolved, Layout):
+                resolved = Content("".join([resolved.pre, "", resolved.post]))
+            return HttpResponse(resolved.text)
 
         return routeview
 
-    def urlpatterns(self) -> list[URLPattern]:
-        """Construct url patterns to include in the URLConf."""
-        return [
-            path(self.__create_path(routes), self.__create_view(routes))
-            for routes in self.__route_chains()
-        ]
+    def path(
+        self, *, resolve_parent: Optional[Callable[..., Layout | Content]] = None
+    ) -> URLPattern | URLResolver:
+        """Construct the path to include in the URLConf."""
+        resolve = self.__resolver(resolve_parent)
+        if self.__children:
+            return path(
+                self.__path,
+                include(
+                    [child.path(resolve_parent=resolve) for child in self.__children]
+                ),
+            )
+        return path(self.__path, self.__create_view(resolve))
 
 
 route = Route(
