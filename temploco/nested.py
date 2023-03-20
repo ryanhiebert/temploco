@@ -60,6 +60,7 @@ class Route:
         path: str = "",
         view: Optional[Callable[..., Layout | Content]] = None,
         children: Optional[list[Route]] = None,
+        name: Optional[str] = None,
     ):
         def noop_view(request: HttpRequest, /, **kwargs: Any) -> Layout:
             return Layout()
@@ -67,6 +68,7 @@ class Route:
         self.__path = path
         self.__view = view or noop_view
         self.__children = children or []
+        self.__name = name
 
     def __resolver(
         self,
@@ -117,7 +119,12 @@ class Route:
                     ]
                 ),
             )
-        return path(self.__path, self.__create_view(resolve))
+        if not self.__name:
+            # Routes with children don't need to be reversed, but routes
+            # without children might need to be. Since we construct an
+            # internal view, there's no view function to reverse with.
+            raise Exception("name required for routes without children.")
+        return path(self.__path, self.__create_view(resolve), name=self.__name)
 
 
 ############

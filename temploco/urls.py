@@ -30,8 +30,8 @@ urlpatterns = [
         path="spam/<int:spam_id>/",
         view=spam_layout,
         children=[
-            Route(path="x/<int:eggs_id>/", view=eggs_x),
-            Route(path="y/<int:eggs_id>/", view=eggs_y),
+            Route(path="x/<int:eggs_id>/", view=eggs_x, name='spam-x'),
+            Route(path="y/<int:eggs_id>/", view=eggs_y, name='spam-y'),
         ],
     ).path(),
 ]
