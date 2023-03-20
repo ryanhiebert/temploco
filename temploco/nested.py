@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Callable, Optional, Any
 from django.http import HttpRequest, HttpResponse
 from django.urls.resolvers import URLPattern, URLResolver
-from django.urls import path, include
+from django.urls import path, re_path, include
 
 
 class Content:
@@ -17,11 +17,11 @@ class Content:
     Or perhaps should it be a special response subclass?
     """
 
-    def __init__(self, text: str = ""):
-        self.text = text
+    def __init__(self, text: str = "", /):
+        self.__text = text
 
-    def __str__(self):
-        return self.text
+    def __str__(self, /):
+        return self.__text
 
 
 class Layout:
@@ -41,8 +41,16 @@ class Layout:
     """
 
     def __init__(self, pre: str = "", post: str = "", /):
-        self.pre = pre
-        self.post = post
+        self.__pre = pre
+        self.__post = post
+
+    def __str__(self, /):
+        return self.__pre + self.__post
+
+    def compose(self, content: Layout | Content, /) -> Layout | Content:
+        if isinstance(content, Layout):
+            return Layout(self.__pre + content.__pre, content.__post + self.__post)
+        return Content(self.__pre + str(content) + self.__post)
 
 
 class Route:
@@ -61,61 +69,63 @@ class Route:
         self.__children = children or []
 
     def __resolver(
-        self, resolve_parent: Optional[Callable[..., Layout | Content]] = None, /
+        self,
+        /,
+        *,
+        full_path: str,
+        resolve_parent: Optional[Callable[..., Layout | Content]],
     ) -> Callable[..., Layout | Content]:
+        urlpattern = re_path(r".*", lambda *a, **kw: HttpResponse())
+        urlresolver = re_path(r"^/", include([path(full_path, include([urlpattern]))]))
+
         def resolve(request: HttpRequest, **kwargs: Any) -> Layout | Content:
             parent = resolve_parent(request, **kwargs) if resolve_parent else Layout()
             if isinstance(parent, Content):
                 return parent
-            resolved = self.__view(request, **kwargs)
-            if isinstance(resolved, Layout):
-                return Layout(parent.pre + resolved.pre, parent.post + resolved.post)
-            return Content("".join([parent.pre, resolved.text, parent.post]))
+            resolver_match = urlresolver.resolve(request.path)
+            resolved = self.__view(request, **resolver_match.kwargs)
+            return parent.compose(resolved)
 
         return resolve
 
     @staticmethod
     def __create_view(
-        resolve: Callable[..., Layout | Content]
+        resolve: Callable[..., Layout | Content], /
     ) -> Callable[..., HttpResponse]:
         def routeview(request: HttpRequest, **kwargs: Any) -> HttpResponse:
-            resolved = resolve(request, **kwargs)
-            if isinstance(resolved, Layout):
-                resolved = Content("".join([resolved.pre, "", resolved.post]))
-            return HttpResponse(resolved.text)
+            return HttpResponse(str(resolve(request, **kwargs)))
 
         return routeview
 
     def path(
-        self, *, resolve_parent: Optional[Callable[..., Layout | Content]] = None
+        self,
+        /,
+        *,
+        parent_path: str = "",
+        resolve_parent: Optional[Callable[..., Layout | Content]] = None,
     ) -> URLPattern | URLResolver:
         """Construct the path to include in the URLConf."""
-        resolve = self.__resolver(resolve_parent)
+        full_path = parent_path + self.__path
+        resolve = self.__resolver(full_path=full_path, resolve_parent=resolve_parent)
         if self.__children:
             return path(
                 self.__path,
                 include(
-                    [child.path(resolve_parent=resolve) for child in self.__children]
+                    [
+                        child.path(parent_path=full_path, resolve_parent=resolve)
+                        for child in self.__children
+                    ]
                 ),
             )
         return path(self.__path, self.__create_view(resolve))
-
-
-route = Route(
-    view=lambda r: Layout("&lt;root&gt;", "&lt;/root&gt;"),
-    children=[
-        Route(path="x/", view=lambda r: Content("x")),
-        Route(path="y/", view=lambda r: Content("y")),
-    ],
-)
 
 
 ############
 ## IDEAS ###
 ############
 
-# Immediately show a item as deleted even though there's a delay between
-# insert and read, such as replicating to elasticsearch.
+# Immediately show an item as deleted even though there's a delay
+# between insert and read, such as replicating to elasticsearch.
 
 # Lazy load sub-routes.
 

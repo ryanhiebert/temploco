@@ -1,8 +1,21 @@
 from django.urls import path
-from nested import Route, Layout, Content
+from django.http import HttpRequest
+from .nested import Route, Layout, Content
 
 from .index import index
 from . import contacts
+
+
+def spam_layout(request: HttpRequest, spam_id: int):
+    return Layout(f"<p>HEADER {spam_id=}</p>", "<p>FOOTER</p>")
+
+
+def eggs_x(request: HttpRequest, spam_id: int, eggs_id: int):
+    return Content(f"<p>x {spam_id=} {eggs_id=}</p>")
+
+
+def eggs_y(request: HttpRequest, spam_id: int, eggs_id: int):
+    return Content(f"<p>y {spam_id=} {eggs_id=}</p>")
 
 
 app_name = "temploco"
@@ -14,10 +27,11 @@ urlpatterns = [
     path("contacts/<int:id>/edit", contacts.Edit.as_view(), name="contacts-detail"),
     path("contacts/<int:id>/delete", contacts.Delete.as_view(), name="contacts-detail"),
     Route(
-        view=lambda r: Layout("&lt;root&gt;", "&lt;/root&gt;"),
+        path="spam/<int:spam_id>/",
+        view=spam_layout,
         children=[
-            Route(path="x/", view=lambda r: Content("x")),
-            Route(path="y/", view=lambda r: Content("y")),
+            Route(path="x/<int:eggs_id>/", view=eggs_x),
+            Route(path="y/<int:eggs_id>/", view=eggs_y),
         ],
     ).path(),
 ]
