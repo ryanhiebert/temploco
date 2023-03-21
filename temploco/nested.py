@@ -47,9 +47,10 @@ class Layout:
     def __str__(self, /):
         return self.__pre + self.__post
 
-    def compose(self, content: Layout | Content, /) -> Layout | Content:
-        if isinstance(content, Layout):
-            return Layout(self.__pre + content.__pre, content.__post + self.__post)
+    def compose(self, content: Layout, /) -> Layout:
+        return Layout(self.__pre + content.__pre, content.__post + self.__post)
+
+    def fill(self, content: Content, /) -> Content:
         return Content(self.__pre + str(content) + self.__post)
 
 
@@ -58,16 +59,15 @@ class Route:
         self,
         *,
         path: str = "",
-        view: Optional[Callable[..., Layout | Content]] = None,
+        layout: Optional[Callable[..., Layout]] = None,
         children: Optional[list[Route]] = None,
+        view: Optional[Callable[..., Content]] = None,
         name: Optional[str] = None,
     ):
-        def noop_view(request: HttpRequest, /, **kwargs: Any) -> Layout:
-            return Layout()
-
         self.__path = path
-        self.__view = view or noop_view
+        self.__layout = layout or (lambda *a, **kw: Layout())
         self.__children = children or []
+        self.__view = view or (lambda *a, **kw: Content())
         self.__name = name
 
     def __resolver(
@@ -75,31 +75,26 @@ class Route:
         /,
         *,
         full_path: str,
-        resolve_parent: Callable[..., Layout | Content],
-    ) -> Callable[..., Layout | Content]:
+        resolve_parent: Callable[..., Layout],
+    ) -> Callable[..., Layout]:
         urlpattern = re_path(r".*", lambda *a, **kw: HttpResponse())
         urlresolver = re_path(r"^/", include([path(full_path, include([urlpattern]))]))
 
-        def resolve(request: HttpRequest, **kwargs: Any) -> Layout | Content:
+        def resolve(request: HttpRequest, **kwargs: Any) -> Layout:
             parent = resolve_parent(request, **kwargs)
-            if isinstance(parent, Content):
-                return parent
             resolver_match = urlresolver.resolve(request.path)
-            resolved = self.__view(request, **resolver_match.kwargs)
+            resolved = self.__layout(request, **resolver_match.kwargs)
             return parent.compose(resolved)
 
         return resolve
 
     def __create_view(
-        self, resolve_parent: Callable[..., Layout | Content], /
+        self, resolve_parent: Callable[..., Layout], /
     ) -> Callable[..., HttpResponse]:
         def routeview(request: HttpRequest, **kwargs: Any) -> HttpResponse:
-            # Resolve childmost view first, to handle unsafe methods.
             content = self.__view(request, **kwargs)
             parent = resolve_parent(request, **kwargs)
-            if isinstance(parent, Layout):
-                content = parent.compose(content)
-            return HttpResponse(str(content))
+            return HttpResponse(str(parent.fill(content)))
 
         return routeview
 
@@ -108,12 +103,11 @@ class Route:
         /,
         *,
         parent_path: str = "",
-        resolve_parent: Optional[Callable[..., Layout | Content]] = None,
+        resolve_parent: Optional[Callable[..., Layout]] = None,
     ) -> URLPattern | URLResolver:
         """Construct the path to include in the URLConf."""
         full_path = parent_path + self.__path
-        if not resolve_parent:
-            resolve_parent = lambda *a, **kw: Layout()
+        resolve_parent = resolve_parent or (lambda *a, **kw: Layout())
         resolve = self.__resolver(full_path=full_path, resolve_parent=resolve_parent)
         if self.__children:
             return path(

@@ -28,7 +28,7 @@ urlpatterns = [
     path("contacts/<int:id>/delete", contacts.Delete.as_view(), name="contacts-detail"),
     Route(
         path="spam/<int:spam_id>/",
-        view=spam_layout,
+        layout=spam_layout,
         children=[
             Route(path="x/<int:eggs_id>/", view=eggs_x, name='spam-x'),
             Route(path="y/<int:eggs_id>/", view=eggs_y, name='spam-y'),
