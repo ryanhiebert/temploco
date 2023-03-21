@@ -41,6 +41,12 @@ class Layout:
     all of that by itself. So layouts may not need to be a response at
     all, while content might just be a response, or might be a signal
     subclass of response.
+
+    I do think that layouts will probably need to be involved in
+    determining things like cache headers. I'm not sure how that
+    should work yet, but a cache header needs to take into account
+    the longevity of the info in the view as well as the longevity
+    of any info in the layout.
     """
 
     def __init__(self, pre: str = "", post: str = "", /):
@@ -151,3 +157,8 @@ class Route:
 # immediately rather than even running the views at all.
 
 # Form submissions with alternative methods, like PUT, PATCH, DELETE.
+
+# Caching: if the layout has expired client-side, then it should
+# automatically fill in from a higher parent route. I don't know
+# yet whether that could be determined effectively server-side,
+# or whether that would require client-side cooperation.
