@@ -28,6 +28,9 @@ class Layout:
     """What a layout route should return.
 
     Should a layout route be allowed to just return content directly? i think so. it seems like a useful way to give more power.
+      update: I no longer think this. Instead, I think to have two
+              types of layout, one that can be filled, and one that
+              throws away any content that would fill it.
     How much of a response can a layout emulate?
     Can a layout include headers?
     Can the layout be a standard response and we find and replace a token?
