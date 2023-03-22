@@ -70,7 +70,7 @@ class Route:
         path: str = "",
         layout: Optional[Callable[..., Layout]] = None,
         children: Optional[list[Route]] = None,
-        view: Optional[Callable[..., Content]] = None,
+        view: Optional[Callable[..., Content | HttpResponse]] = None,
         name: Optional[str] = None,
     ):
         self.__path = path
@@ -84,26 +84,28 @@ class Route:
         /,
         *,
         full_path: str,
-        resolve_parent: Callable[..., Layout],
+        resolve_layout: Callable[..., Layout],
     ) -> Callable[..., Layout]:
         urlpattern = re_path(r".*", lambda *a, **kw: HttpResponse())
         urlresolver = re_path(r"^/", include([path(full_path, include([urlpattern]))]))
 
         def resolve(request: HttpRequest, **kwargs: Any) -> Layout:
-            parent = resolve_parent(request, **kwargs)
+            layout = resolve_layout(request, **kwargs)
             resolver_match = urlresolver.resolve(request.path)
             resolved = self.__layout(request, **resolver_match.kwargs)
-            return parent.compose(resolved)
+            return layout.compose(resolved)
 
         return resolve
 
     def __create_view(
-        self, resolve_parent: Callable[..., Layout], /
+        self, resolve_layout: Callable[..., Layout], /
     ) -> Callable[..., HttpResponse]:
         def routeview(request: HttpRequest, **kwargs: Any) -> HttpResponse:
-            content = self.__view(request, **kwargs)
-            parent = resolve_parent(request, **kwargs)
-            return HttpResponse(str(parent.fill(content)))
+            response = self.__view(request, **kwargs)
+            if isinstance(response, Content):
+                layout = resolve_layout(request, **kwargs)
+                return HttpResponse(str(layout.fill(response)))
+            return response
 
         return routeview
 
@@ -117,17 +119,13 @@ class Route:
         """Construct the path to include in the URLConf."""
         full_path = parent_path + self.__path
         resolve_parent = resolve_parent or (lambda *a, **kw: Layout())
-        resolve = self.__resolver(full_path=full_path, resolve_parent=resolve_parent)
+        resolve = self.__resolver(full_path=full_path, resolve_layout=resolve_parent)
         if self.__children:
-            return path(
-                self.__path,
-                include(
-                    [
-                        child.path(parent_path=full_path, resolve_parent=resolve)
-                        for child in self.__children
-                    ]
-                ),
-            )
+            child_paths = [
+                child.path(parent_path=full_path, resolve_parent=resolve)
+                for child in self.__children
+            ]
+            return path(self.__path, include(child_paths))
         if not self.__name:
             # Routes with children don't need to be reversed, but routes
             # without children might need to be. Since we construct an

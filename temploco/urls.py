@@ -1,4 +1,3 @@
-from django.urls import path
 from django.http import HttpRequest
 from .nested import Route, Layout, Content
 
@@ -20,18 +19,36 @@ def eggs_y(request: HttpRequest, spam_id: int, eggs_id: int):
 
 app_name = "temploco"
 urlpatterns = [
-    path("", index, name="index"),
-    path("contacts/", contacts.contacts, name="contacts"),
-    path("contacts/new", contacts.New.as_view(), name="contacts-new"),
-    path("contacts/<int:id>/", contacts.Detail.as_view(), name="contacts-detail"),
-    path("contacts/<int:id>/edit", contacts.Edit.as_view(), name="contacts-detail"),
-    path("contacts/<int:id>/delete", contacts.Delete.as_view(), name="contacts-detail"),
     Route(
-        path="spam/<int:spam_id>/",
-        layout=spam_layout,
         children=[
-            Route(path="x/<int:eggs_id>/", view=eggs_x, name='spam-x'),
-            Route(path="y/<int:eggs_id>/", view=eggs_y, name='spam-y'),
-        ],
-    ).path(),
+            Route(view=index, name="index"),
+            Route(path="contacts", view=contacts.contacts, name="contacts"),
+            Route(
+                path="contacts/new", view=contacts.New.as_view(), name="contacts-new"
+            ),
+            Route(
+                path="contacts/<int:id>/",
+                view=contacts.Detail.as_view(),
+                name="contacts-detail",
+            ),
+            Route(
+                path="contacts/<int:id>/edit",
+                view=contacts.Edit.as_view(),
+                name="contacts-detail",
+            ),
+            Route(
+                path="contacts/<int:id>/delete",
+                view=contacts.Delete.as_view(),
+                name="contacts-detail",
+            ),
+            Route(
+                path="spam/<int:spam_id>/",
+                layout=spam_layout,
+                children=[
+                    Route(path="x/<int:eggs_id>/", view=eggs_x, name="spam-x"),
+                    Route(path="y/<int:eggs_id>/", view=eggs_y, name="spam-y"),
+                ],
+            ),
+        ]
+    ).path()
 ]
