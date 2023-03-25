@@ -35,12 +35,12 @@ urlpatterns = [
             Route(
                 path="contacts/<int:id>/edit",
                 view=contacts.Edit.as_view(),
-                name="contacts-detail",
+                name="contacts-edit",
             ),
             Route(
                 path="contacts/<int:id>/delete",
                 view=contacts.Delete.as_view(),
-                name="contacts-detail",
+                name="contacts-delete",
             ),
             Route(
                 path="spam/<int:spam_id>/",
