@@ -217,3 +217,12 @@ class Route:
 # automatically fill in from a higher parent route. I don't know
 # yet whether that could be determined effectively server-side,
 # or whether that would require client-side cooperation.
+
+# Partial, non-primary-route templates might also be non-lazy.
+# For example, a layout route may need a partial template in order
+# to have a form, with handling, in its template. This doesn't
+# properly belong in the layout, where it doesn't really have its
+# own URL, but we'd still want it to be server-rendered. We also
+# want to make sure that the form action handler could be handled
+# in the same function that generates the form, and that's what a
+# view is for.
