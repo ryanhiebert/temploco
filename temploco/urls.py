@@ -20,8 +20,9 @@ def eggs_y(request: HttpRequest, spam_id: int, eggs_id: int):
 app_name = "temploco"
 urlpatterns = [
     Route(
+        path="",
         children=[
-            Route(view=index, name="index"),
+            Route(path="", view=index, name="index"),
             Route(path="contacts", view=contacts.contacts, name="contacts"),
             Route(
                 path="contacts/new", view=contacts.New.as_view(), name="contacts-new"
@@ -49,6 +50,6 @@ urlpatterns = [
                     Route(path="y/<int:eggs_id>/", view=eggs_y, name="spam-y"),
                 ],
             ),
-        ]
+        ],
     ).path()
 ]
