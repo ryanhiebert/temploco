@@ -226,3 +226,8 @@ class Route:
 # want to make sure that the form action handler could be handled
 # in the same function that generates the form, and that's what a
 # view is for.
+
+# It would be great for partials to (all?) declare their own caching
+# parameters. It could make pages load very quickly.
+
+# Prefetching links would be amazing.
