@@ -6,22 +6,79 @@ from django.urls.resolvers import URLPattern, URLResolver
 from django.urls import path, re_path, include
 
 
-class Content:
-    """What a page layout should return.
+class LayoutNotRenderedError(Exception):
+    """The layout needs to be rendered before this action."""
 
-    Needs to have headers too.
-    Status code?
-    How much of a response should it emulate?
-    Should it just be a response itself,
-    and the content gets put together?
-    Or perhaps should it be a special response subclass?
-    """
 
-    def __init__(self, text: str = "", /):
-        self.__text = text
+class PartialResponse(HttpResponse):
+    """A response to nest in layouts."""
 
-    def __str__(self, /):
-        return self.__text
+    # This is modeled heavily after TemplateResponse, because Django
+    # automatically runs the render method on to handle it, and we
+    # are going to want to make sure we can do the same in a custom
+    # TemplateResponse subclass.
+
+    def __init__(
+        self,
+        content: str = "",
+        content_type: Any = None,
+        status: Any = None,
+        charset: Any = None,
+        headers: Any = None,
+    ):
+        # content will be replaced with rendered content, so we always
+        # pass an empty string here so the base initializer can use our
+        # content set method without errors.
+        super().__init__("", content_type, status, charset=charset, headers=headers)
+        self.__content: str = content
+        self.__rendered: bool = False
+
+    @property
+    def layout(self) -> Layout:
+        """The layout to use for this response."""
+        return self.__layout  # Raises if not yet set
+
+    @layout.setter
+    def layout(self, value: Layout):
+        """Set the layout for this response.
+
+        This cannot be done at construction time, because the purpose
+        is to decouple layouts from views. The content cannot be set
+        immediately, because some ``HttpReponse`` subclassses, like
+        ``TemplateResponse``, do not render their template until the
+        render() method is called automatically by Django.
+        """
+        self.__layout: Layout = value
+
+    def render(self) -> HttpResponse:
+        """Render (thereby finalizing) the content of the response.
+
+        If the content has already been rendered, this is a no-op.
+
+        Return the baked response instance.
+        """
+        self.content = self.layout.fill(self.__content)
+        self.__rendered = True
+        return self
+
+    def __iter__(self):
+        if not self.__rendered:
+            raise LayoutNotRenderedError(
+                "The response content must be rendered before it can be iterated over."
+            )
+        return super().__iter__()
+
+    @property
+    def content(self):
+        if not self.__rendered:
+            raise LayoutNotRenderedError(
+                "The response content must be rendered before it can be accessed."
+            )
+        return super().content
+
+    @content.setter
+    def content(self, value: Any):
+        HttpResponse.content.fset(self, value)
 
 
 class Layout:
@@ -53,14 +110,11 @@ class Layout:
         self.__pre = pre
         self.__post = post
 
-    def __str__(self, /):
-        return self.__pre + self.__post
-
     def compose(self, content: Layout, /) -> Layout:
         return Layout(self.__pre + content.__pre, content.__post + self.__post)
 
-    def fill(self, content: Content, /) -> Content:
-        return Content(self.__pre + str(content) + self.__post)
+    def fill(self, content: str, /) -> str:
+        return self.__pre + content + self.__post
 
 
 class Route:
@@ -70,13 +124,13 @@ class Route:
         path: str = "",
         layout: Optional[Callable[..., Layout]] = None,
         children: Optional[list[Route]] = None,
-        view: Optional[Callable[..., Content | HttpResponse]] = None,
+        view: Optional[Callable[..., HttpResponse]] = None,
         name: Optional[str] = None,
     ):
         self.__path = path
         self.__layout = layout or (lambda *a, **kw: Layout())
         self.__children = children or []
-        self.__view = view or (lambda *a, **kw: Content())
+        self.__view = view
         self.__name = name
 
     def __resolver(
@@ -100,11 +154,14 @@ class Route:
     def __create_view(
         self, resolve_layout: Callable[..., Layout], /
     ) -> Callable[..., HttpResponse]:
+        view = self.__view
+        if not view:
+            raise Exception("No view given for this path.")
+
         def routeview(request: HttpRequest, **kwargs: Any) -> HttpResponse:
-            response = self.__view(request, **kwargs)
-            if isinstance(response, Content):
-                layout = resolve_layout(request, **kwargs)
-                return HttpResponse(str(layout.fill(response)))
+            response = view(request, **kwargs)
+            if isinstance(response, PartialResponse):
+                response.layout = resolve_layout(request, **kwargs)
             return response
 
         return routeview

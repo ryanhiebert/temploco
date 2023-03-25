@@ -1,5 +1,5 @@
 from django.http import HttpRequest
-from .nested import Route, Layout, Content
+from .nested import Route, Layout, PartialResponse
 
 from .index import index
 from . import contacts
@@ -10,11 +10,11 @@ def spam_layout(request: HttpRequest, spam_id: int):
 
 
 def eggs_x(request: HttpRequest, spam_id: int, eggs_id: int):
-    return Content(f"<p>x {spam_id=} {eggs_id=}</p>")
+    return PartialResponse(f"<p>x {spam_id=} {eggs_id=}</p>")
 
 
 def eggs_y(request: HttpRequest, spam_id: int, eggs_id: int):
-    return Content(f"<p>y {spam_id=} {eggs_id=}</p>")
+    return PartialResponse(f"<p>y {spam_id=} {eggs_id=}</p>")
 
 
 app_name = "temploco"
