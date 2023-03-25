@@ -6,6 +6,42 @@ from django.urls.resolvers import URLPattern, URLResolver
 from django.urls import path, re_path, include
 
 
+class Layout:
+    """What a layout route should return.
+
+    Should a layout route be allowed to just return content directly? i think so. it seems like a useful way to give more power.
+      update: I no longer think this. Instead, I think to have two
+              types of layout, one that can be filled, and one that
+              throws away any content that would fill it.
+    How much of a response can a layout emulate?
+    Can a layout include headers?
+    Can the layout be a standard response and we find and replace a token?
+    Or perhaps we have a special `LayoutResponse` response subclass?
+
+    I don't think that the layout needs to be able to add any response
+    parameters or anything. Seems like the child may be able to handle
+    all of that by itself. So layouts may not need to be a response at
+    all, while content might just be a response, or might be a signal
+    subclass of response.
+
+    I do think that layouts will probably need to be involved in
+    determining things like cache headers. I'm not sure how that
+    should work yet, but a cache header needs to take into account
+    the longevity of the info in the view as well as the longevity
+    of any info in the layout.
+    """
+
+    def __init__(self, pre: str = "", post: str = "", /):
+        self.__pre = pre
+        self.__post = post
+
+    def compose(self, content: Layout, /) -> Layout:
+        return Layout(self.__pre + content.__pre, content.__post + self.__post)
+
+    def fill(self, content: str, /) -> str:
+        return self.__pre + content + self.__post
+
+
 class LayoutNotRenderedError(Exception):
     """The layout needs to be rendered before this action."""
 
@@ -79,42 +115,6 @@ class PartialResponse(HttpResponse):
     @content.setter
     def content(self, value: Any):
         HttpResponse.content.fset(self, value)
-
-
-class Layout:
-    """What a layout route should return.
-
-    Should a layout route be allowed to just return content directly? i think so. it seems like a useful way to give more power.
-      update: I no longer think this. Instead, I think to have two
-              types of layout, one that can be filled, and one that
-              throws away any content that would fill it.
-    How much of a response can a layout emulate?
-    Can a layout include headers?
-    Can the layout be a standard response and we find and replace a token?
-    Or perhaps we have a special `LayoutResponse` response subclass?
-
-    I don't think that the layout needs to be able to add any response
-    parameters or anything. Seems like the child may be able to handle
-    all of that by itself. So layouts may not need to be a response at
-    all, while content might just be a response, or might be a signal
-    subclass of response.
-
-    I do think that layouts will probably need to be involved in
-    determining things like cache headers. I'm not sure how that
-    should work yet, but a cache header needs to take into account
-    the longevity of the info in the view as well as the longevity
-    of any info in the layout.
-    """
-
-    def __init__(self, pre: str = "", post: str = "", /):
-        self.__pre = pre
-        self.__post = post
-
-    def compose(self, content: Layout, /) -> Layout:
-        return Layout(self.__pre + content.__pre, content.__post + self.__post)
-
-    def fill(self, content: str, /) -> str:
-        return self.__pre + content + self.__post
 
 
 class Route:
