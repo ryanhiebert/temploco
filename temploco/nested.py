@@ -175,3 +175,7 @@ class Route:
 # parameters. It could make pages load very quickly.
 
 # Prefetching links would be amazing.
+
+# Error boundaries. Is that defined by the layout as a child
+# alternative, or by the child? Or perhaps both approaches have
+# merit, for different purposes.
