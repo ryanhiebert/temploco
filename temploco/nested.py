@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Callable, Optional, Any
+from dataclasses import dataclass
 from django.http import HttpRequest, HttpResponse
 from django.urls.resolvers import URLPattern, URLResolver
 from django.urls import path, re_path, include
@@ -42,79 +43,15 @@ class Layout:
         return self.__pre + content + self.__post
 
 
-class LayoutNotRenderedError(Exception):
-    """The layout needs to be rendered before this action."""
+@dataclass
+class PartialResponse:
+    """A partial response ready to add combine with layouts."""
 
-
-class PartialResponse(HttpResponse):
-    """A response to nest in layouts."""
-
-    # This is modeled heavily after TemplateResponse, because Django
-    # automatically runs the render method on to handle it, and we
-    # are going to want to make sure we can do the same in a custom
-    # TemplateResponse subclass.
-
-    def __init__(
-        self,
-        content: str = "",
-        content_type: Any = None,
-        status: Any = None,
-        charset: Any = None,
-        headers: Any = None,
-    ):
-        # content will be replaced with rendered content, so we always
-        # pass an empty string here so the base initializer can use our
-        # content set method without errors.
-        super().__init__("", content_type, status, charset=charset, headers=headers)
-        self.__content: str = content
-        self.__rendered: bool = False
-
-    @property
-    def layout(self) -> Layout:
-        """The layout to use for this response."""
-        return self.__layout  # Raises if not yet set
-
-    @layout.setter
-    def layout(self, value: Layout):
-        """Set the layout for this response.
-
-        This cannot be done at construction time, because the purpose
-        is to decouple layouts from views. The content cannot be set
-        immediately, because some ``HttpReponse`` subclassses, like
-        ``TemplateResponse``, do not render their template until the
-        render() method is called automatically by Django.
-        """
-        self.__layout: Layout = value
-
-    def render(self) -> HttpResponse:
-        """Render (thereby finalizing) the content of the response.
-
-        If the content has already been rendered, this is a no-op.
-
-        Return the baked response instance.
-        """
-        self.content = self.layout.fill(self.__content)
-        self.__rendered = True
-        return self
-
-    def __iter__(self):
-        if not self.__rendered:
-            raise LayoutNotRenderedError(
-                "The response content must be rendered before it can be iterated over."
-            )
-        return super().__iter__()
-
-    @property
-    def content(self):
-        if not self.__rendered:
-            raise LayoutNotRenderedError(
-                "The response content must be rendered before it can be accessed."
-            )
-        return super().content
-
-    @content.setter
-    def content(self, value: Any):
-        HttpResponse.content.fset(self, value)
+    content: str = ""
+    content_type: Optional[str] = None
+    status: Optional[int] = None
+    charset: Optional[str] = None
+    headers: Optional[dict[str, str]] = None
 
 
 class Route:
@@ -124,7 +61,7 @@ class Route:
         path: str = "",
         layout: Optional[Callable[..., Layout]] = None,
         children: Optional[list[Route]] = None,
-        view: Optional[Callable[..., HttpResponse]] = None,
+        view: Optional[Callable[..., HttpResponse | PartialResponse]] = None,
         name: Optional[str] = None,
     ):
         self.__path = path
@@ -161,7 +98,14 @@ class Route:
         def routeview(request: HttpRequest, **kwargs: Any) -> HttpResponse:
             response = view(request, **kwargs)
             if isinstance(response, PartialResponse):
-                response.layout = resolve_layout(request, **kwargs)
+                layout = resolve_layout(request, **kwargs)
+                response = HttpResponse(
+                    content=layout.fill(response.content),
+                    content_type=response.content_type,
+                    status=response.status,
+                    charset=response.charset,
+                    headers=response.headers,
+                )
             return response
 
         return routeview
