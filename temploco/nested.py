@@ -36,8 +36,8 @@ class Layout:
         self.__pre = pre
         self.__post = post
 
-    def compose(self, content: Layout, /) -> Layout:
-        return Layout(self.__pre + content.__pre, content.__post + self.__post)
+    def compose(self, parent: Layout, /) -> Layout:
+        return Layout(parent.__pre + self.__pre, self.__post + parent.__post)
 
     def fill(self, content: str, /) -> str:
         return self.__pre + content + self.__post
@@ -84,7 +84,7 @@ class Route:
             layout = resolve_layout(request, **kwargs)
             resolver_match = urlresolver.resolve(request.path)
             resolved = self.__layout(request, **resolver_match.kwargs)
-            return layout.compose(resolved)
+            return resolved.compose(layout)
 
         return resolve
 
