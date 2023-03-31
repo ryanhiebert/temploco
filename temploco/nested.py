@@ -179,3 +179,16 @@ class Route:
 # Error boundaries. Is that defined by the layout as a child
 # alternative, or by the child? Or perhaps both approaches have
 # merit, for different purposes.
+
+# Non-default branch layouts open an interesting avenue of exploration.
+# There should be able to be layouts. Even layouts that may not ever
+# contribute anything to any part of a path. That take children,
+# and still have the full power of logic-filled view and not merely
+# a template. Even if all forms are required to be URL addressable.
+
+# Maybe child routes _should_ be fully in charge of their own layouts.
+# But typically can delegate them to the routing layer in order to
+# enable the parallel magic. But maybe even that has to be explicitly
+# chosen by some easy idomatic and largely transparent selection, such
+# as a view decorator that implements a typical class prototype that
+# could be overridden? How would that interact with typical Django CBVs?
