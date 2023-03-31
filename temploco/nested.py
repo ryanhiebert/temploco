@@ -7,7 +7,7 @@ from django.urls.resolvers import URLPattern, URLResolver
 from django.urls import path, re_path, include
 
 
-class Layout:
+class LayoutResponse:
     """What a layout route should return.
 
     Should a layout route be allowed to just return content directly? i think so. it seems like a useful way to give more power.
@@ -36,8 +36,8 @@ class Layout:
         self.__pre = pre
         self.__post = post
 
-    def compose(self, parent: Layout, /) -> Layout:
-        return Layout(parent.__pre + self.__pre, self.__post + parent.__post)
+    def compose(self, parent: LayoutResponse, /) -> LayoutResponse:
+        return LayoutResponse(parent.__pre + self.__pre, self.__post + parent.__post)
 
     def fill(self, content: str, /) -> str:
         return self.__pre + content + self.__post
@@ -59,13 +59,13 @@ class Route:
         self,
         *,
         path: str = "",
-        layout: Optional[Callable[..., Layout]] = None,
+        layout: Optional[Callable[..., LayoutResponse]] = None,
         children: Optional[list[Route]] = None,
         view: Optional[Callable[..., HttpResponse | PartialResponse]] = None,
         name: Optional[str] = None,
     ):
         self.__path = path
-        self.__layout = layout or (lambda *a, **kw: Layout())
+        self.__layout = layout or (lambda *a, **kw: LayoutResponse())
         self.__children = children or []
         self.__view = view
         self.__name = name
@@ -75,12 +75,12 @@ class Route:
         /,
         *,
         full_path: str,
-        resolve_layout: Callable[..., Layout],
-    ) -> Callable[..., Layout]:
+        resolve_layout: Callable[..., LayoutResponse],
+    ) -> Callable[..., LayoutResponse]:
         urlpattern = re_path(r".*", lambda *a, **kw: HttpResponse())
         urlresolver = re_path(r"^/", include([path(full_path, include([urlpattern]))]))
 
-        def resolve(request: HttpRequest, **kwargs: Any) -> Layout:
+        def resolve(request: HttpRequest, **kwargs: Any) -> LayoutResponse:
             layout = resolve_layout(request, **kwargs)
             resolver_match = urlresolver.resolve(request.path)
             resolved = self.__layout(request, **resolver_match.kwargs)
@@ -89,7 +89,7 @@ class Route:
         return resolve
 
     def __create_view(
-        self, resolve_layout: Callable[..., Layout], /
+        self, resolve_layout: Callable[..., LayoutResponse], /
     ) -> Callable[..., HttpResponse]:
         view = self.__view
         if not view:
@@ -115,11 +115,11 @@ class Route:
         /,
         *,
         parent_path: str = "",
-        resolve_parent: Optional[Callable[..., Layout]] = None,
+        resolve_parent: Optional[Callable[..., LayoutResponse]] = None,
     ) -> URLPattern | URLResolver:
         """Construct the path to include in the URLConf."""
         full_path = parent_path + self.__path
-        resolve_parent = resolve_parent or (lambda *a, **kw: Layout())
+        resolve_parent = resolve_parent or (lambda *a, **kw: LayoutResponse())
         resolve = self.__resolver(full_path=full_path, resolve_layout=resolve_parent)
         if self.__children:
             child_paths = [

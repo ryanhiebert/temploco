@@ -1,12 +1,12 @@
 from django.http import HttpRequest
-from .nested import Route, Layout, PartialResponse
+from .nested import Route, LayoutResponse, PartialResponse
 
 from .index import index
 from . import contacts
 
 
 def spam_layout(request: HttpRequest, spam_id: int):
-    return Layout(f"<p>HEADER {spam_id=}</p>", "<p>FOOTER</p>")
+    return LayoutResponse(f"<p>HEADER {spam_id=}</p>", "<p>FOOTER</p>")
 
 
 def eggs_x(request: HttpRequest, spam_id: int, eggs_id: int):
