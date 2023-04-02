@@ -89,7 +89,7 @@ class Route:
         return resolve
 
     def __create_view(
-        self, resolve_layout: Callable[..., LayoutResponse], /
+        self, layout: Callable[..., LayoutResponse], /
     ) -> Callable[..., HttpResponse]:
         view = self.__view
         if not view:
@@ -98,9 +98,9 @@ class Route:
         def routeview(request: HttpRequest, **kwargs: Any) -> HttpResponse:
             response = view(request, **kwargs)
             if isinstance(response, PartialResponse):
-                layout = resolve_layout(request, **kwargs)
+                layout_response = layout(request, **kwargs)
                 response = HttpResponse(
-                    content=layout.fill(response.content),
+                    content=layout_response.fill(response.content),
                     content_type=response.content_type,
                     status=response.status,
                     charset=response.charset,
