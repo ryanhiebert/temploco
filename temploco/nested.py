@@ -52,6 +52,7 @@ class PartialResponse:
     status: Optional[int] = None
     charset: Optional[str] = None
     headers: Optional[dict[str, str]] = None
+    layout: Optional[LayoutResponse] = None
 
 
 class Route:
@@ -98,7 +99,7 @@ class Route:
         def routeview(request: HttpRequest, **kwargs: Any) -> HttpResponse:
             response = view(request, **kwargs)
             if isinstance(response, PartialResponse):
-                layout_response = layout(request, **kwargs)
+                layout_response = response.layout or layout(request, **kwargs)
                 response = HttpResponse(
                     content=layout_response.fill(response.content),
                     content_type=response.content_type,
