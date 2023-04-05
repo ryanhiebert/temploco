@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Callable, Optional, Any
+from typing import Callable, Optional, Any, Self
 from dataclasses import dataclass
 from django.http import HttpRequest, HttpResponse
+from django.template import loader
 from django.urls.resolvers import URLPattern, URLResolver
 from django.urls import path, re_path, include
 
@@ -32,15 +33,29 @@ class LayoutResponse:
     of any info in the layout.
     """
 
-    def __init__(self, pre: str = "", post: str = "", /):
-        self.__pre = pre
-        self.__post = post
+    __DIVIDER = "<django-layout></django-layout>"
 
-    def compose(self, parent: LayoutResponse, /) -> LayoutResponse:
-        return LayoutResponse(parent.__pre + self.__pre, self.__post + parent.__post)
+    def __init__(self, content: Optional[str] = None):
+        self.__content = content or self.__DIVIDER
+
+    def compose(self, parent: LayoutResponse, /) -> Self:
+        return type(self)(parent.fill(self.__content))
 
     def fill(self, content: str, /) -> str:
-        return self.__pre + content + self.__post
+        return self.__content.replace(self.__DIVIDER, content)
+
+    @classmethod
+    def render(
+        cls,
+        request: Optional[HttpRequest],
+        template_name: list[str] | str,
+        context: Optional[dict[str, Any]] = None,
+        using: Optional[str] = None,
+    ):
+        context = context or {}
+        context.setdefault("DIVIDER", cls.__DIVIDER)
+        content = loader.render_to_string(template_name, context, request, using=using)
+        return cls(content)
 
 
 @dataclass
@@ -53,6 +68,20 @@ class PartialResponse:
     charset: Optional[str] = None
     headers: Optional[dict[str, str]] = None
     layout: Optional[LayoutResponse] = None
+
+    @classmethod
+    def render(
+        cls,
+        request: Optional[HttpRequest],
+        template_name: list[str] | str,
+        context: Optional[dict[str, Any]] = None,
+        content_type: Optional[str] = None,
+        status: Optional[int] = None,
+        using: Optional[str] = None,
+    ):
+        """Render a template to a PartialResponse."""
+        content = loader.render_to_string(template_name, context, request, using=using)
+        return cls(content, content_type, status)
 
 
 class Route:
