@@ -4,7 +4,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
 from django.db.models import Model, CharField, Q
 from django.views.decorators.http import require_POST, require_GET, require_http_methods
-from .nested import LayoutResponse, PartialResponse
+from .layout import LayoutResponse, PartialResponse
 
 
 class Contact(Model):

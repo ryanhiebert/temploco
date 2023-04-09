@@ -1,3 +1,4 @@
+{% load layout %}
 <head>
     <script
         src="https://unpkg.com/htmx.org@1.7.0"
@@ -8,6 +9,6 @@
 
 <body>
     <h1>Site heading</h1>
-    {{ DIVIDER|safe }}
+    {% outlet %}
     <footer>Site footer</footer>
 </body>

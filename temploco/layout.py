@@ -53,7 +53,7 @@ class LayoutResponse:
         using: Optional[str] = None,
     ):
         context = context or {}
-        context.setdefault("DIVIDER", cls.__DIVIDER)
+        context.setdefault("__outlet_divider__", cls.__DIVIDER)
         content = loader.render_to_string(template_name, context, request, using=using)
         return cls(content)
 
