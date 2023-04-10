@@ -1,3 +1,4 @@
+{% load method_override %}
 <form action="/contacts/{{ contact.id }}/edit" method="post">
     {% csrf_token %}
     <fieldset>
@@ -25,8 +26,16 @@
         <button>Save</button>
     </fieldset>
 </form>
-<form action="/contacts/{{ contact.id }}/delete" method="post">
+<form
+    action="/contacts/{{ contact.id }}/"
+    method="post"
+    hx-push-url="true"  {% comment %}Boost doesn't push on form submit{% endcomment %}
+    hx-delete="/contacts/{{ contact.id }}/"
+    hx-target="body"
+    hx-confirm="Are you sure you want to delete this contact?"
+>
     {% csrf_token %}
+    {% method_override "DELETE" %}
     <button>Delete Contact</button>
 </form>
 <p>
