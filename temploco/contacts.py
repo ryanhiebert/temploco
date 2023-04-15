@@ -53,9 +53,43 @@ def redirect(
         if see_other
         else HttpResponseRedirect
     )
-    # Django types are inconsistent between redirect and resolve_url
-    # so we need to cast in order to call resolve_url.
     return redirect_class(resolve_url(to, *args, **kwargs))
+
+
+def hx_redirect(
+    request: HttpRequest,
+    to: Union[Callable[..., Any], str, Model],
+    *args: Any,
+    permanent: bool = False,
+    see_other: bool = False,
+    **kwargs: Any,
+) -> Union[
+    HttpResponseRedirect,
+    HttpResponsePermanentRedirect,
+    HttpResponseSeeOtherRedirect,
+    HttpResponse,
+]:
+    """
+    Return an HttpResponseRedirect or an HttpResponse with the HX-Redirect
+    header set to the appropriate URL for the arguments passed.
+
+    The arguments could be:
+
+        * A model: the model's `get_absolute_url()` function will be called.
+
+        * A view name, possibly with arguments: `urls.reverse()` will be used
+          to reverse-resolve the name.
+
+        * A URL, which will be used as-is for the redirect location.
+
+    Issues a temporary redirect by default; pass permanent=True to issue a
+    permanent redirect, or pass see_other=True to issue a see other redirect.
+    """
+    if request.headers.get("HX-Request") == "true":
+        # Future: Get response from the redirected URL if local and
+        #         return that inline to avoid additional requests.
+        return HttpResponse(headers={"HX-Redirect": resolve_url(to, *args, **kwargs)})
+    return redirect(to, *args, permanent=permanent, see_other=see_other, **kwargs)
 
 
 class Contact(Model):
@@ -91,7 +125,7 @@ def new(request: HttpRequest) -> PartialResponse | HttpResponse:
             phone=request.POST["phone"],
             email=request.POST["email"],
         )
-        return redirect("/contacts/")
+        return hx_redirect(request, "/contacts/", see_other=True)
     return PartialResponse.render(
         request, "temploco/contacts/new.html", {"contact": Contact()}
     )
@@ -101,7 +135,7 @@ def new(request: HttpRequest) -> PartialResponse | HttpResponse:
 def detail(request: HttpRequest, *, id: int) -> PartialResponse | HttpResponse:
     if request.method == "DELETE":
         Contact.objects.filter(id=id).delete()
-        return redirect("/contacts/", see_other=True)
+        return hx_redirect(request, "/contacts/", see_other=True)
     contact = Contact.objects.get(id=id)
     return PartialResponse.render(
         request, "temploco/contacts/show.html", {"contact": contact}
@@ -117,7 +151,7 @@ def edit(request: HttpRequest, *, id: int) -> PartialResponse | HttpResponse:
         contact.phone = request.POST["phone"]
         contact.email = request.POST["email"]
         contact.save()
-        return redirect(f"/contacts/{contact.pk}/")
+        return hx_redirect(request, f"/contacts/{contact.pk}/", see_other=True)
     contact = Contact.objects.get(id=id)
     return PartialResponse.render(
         request, "temploco/contacts/edit.html", {"contact": contact}
@@ -128,4 +162,4 @@ def edit(request: HttpRequest, *, id: int) -> PartialResponse | HttpResponse:
 def delete(request: HttpRequest, *, id: int) -> HttpResponse:
     contact = Contact.objects.get(id=id)
     contact.delete()
-    return redirect("/contacts")
+    return hx_redirect(request, "/contacts", see_other=True)
