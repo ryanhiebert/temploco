@@ -39,7 +39,7 @@ class LayoutResponse:
         self.__content = content or self.__DIVIDER
 
     def compose(self, parent: LayoutResponse, /) -> Self:
-        return type(self)(parent.fill(self.__content))
+        return LayoutResponse(parent.fill(self.__content))
 
     def fill(self, content: str, /) -> str:
         return self.__content.replace(self.__DIVIDER, content)
@@ -78,10 +78,21 @@ class PartialResponse:
         content_type: Optional[str] = None,
         status: Optional[int] = None,
         using: Optional[str] = None,
+        *,
+        charset: Optional[str] = None,
+        headers: Optional[dict[str, str]] = None,
+        layout: Optional[LayoutResponse] = None,
     ):
         """Render a template to a PartialResponse."""
         content = loader.render_to_string(template_name, context, request, using=using)
-        return cls(content, content_type, status)
+        return cls(
+            content,
+            content_type,
+            status,
+            charset=charset,
+            headers=headers,
+            layout=layout,
+        )
 
 
 class Route:

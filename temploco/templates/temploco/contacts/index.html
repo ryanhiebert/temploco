@@ -1,7 +1,19 @@
-<form action="/contacts" method="get" class="tool-bar">
+<form
+    action="/contacts/"
+    method="get"
+    hx-get="/contacts/"
+    hx-target="hmix-outlet[name=layout]"
+    hx-push-url="true"
+>
     <label for="search">Search Term</label>
     <input id="search" type="search" name="q" value="{{ request.GET.q }}" />
     <input type="submit" value="Search" />
+    <a
+        href="/contacts/"
+        hx-get="/contacts/"
+        hx-push-url="true"
+        hx-target="hmix-outlet[name=layout]"
+    >Clear</a>
 </form>
 
 <table>
@@ -22,8 +34,18 @@
             <td>{{ contact.phone }}</td>
             <td>{{ contact.email }}</td>
             <td>
-                <a href="/contacts/{{ contact.id }}/edit">Edit</a>
-                <a href="/contacts/{{ contact.id }}">View</a>
+                <a
+                    href="/contacts/{{ contact.id }}/edit"
+                    hx-get="/contacts/{{ contact.id }}/edit"
+                    hx-push-url="true"
+                    hx-target="hmix-outlet[name=layout]"
+                >Edit</a>
+                <a
+                    href="/contacts/{{ contact.id }}/"
+                    hx-get="/contacts/{{ contact.id }}/"
+                    hx-push-url="true"
+                    hx-target="hmix-outlet[name=layout]"
+                >View</a>
             </td>
         </tr>
         {% endfor %}
@@ -31,5 +53,10 @@
 </table>
 
 <p>
-    <a href="/contacts/new">Add Contact</a>
+    <a
+        href="/contacts/new"
+        hx-get="/contacts/new"
+        hx-push-url="true"
+        hx-target="hmix-outlet[name=layout]"
+    >Add Contact</a>
 </p>

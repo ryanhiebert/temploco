@@ -12,6 +12,6 @@
     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
 >
     <h1>Contact List</h1>
-    {% outlet %}
+    <hmix-outlet id="layout" name="layout">{% outlet %}</hmix-outlet>
     <footer>Site footer</footer>
 </body>

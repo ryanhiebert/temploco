@@ -6,6 +6,11 @@
 </div>
 
 <p>
-    <a href="/contacts/{{contact.id}}/edit">Edit</a>
-    <a href="/contacts">Back</a>
+    <a
+        href="/contacts/{{contact.id}}/edit"
+        hx-get="/contacts/{{contact.id}}/edit"
+        hx-push-url="true"
+        hx-target="hmix-outlet[name=layout]"
+    >Edit</a>
+    <a href="javascript:history.back()">Back</a>
 </p>

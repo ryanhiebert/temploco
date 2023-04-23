@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Union, Callable, Any
+from typing import Union, Callable, Any, Self
 from http import HTTPStatus
 from django.http import (
     HttpRequest,
@@ -99,7 +99,16 @@ class Contact(Model):
     email = CharField(max_length=256)
 
 
+class TerminalLayoutResponse(LayoutResponse):
+    """A layout response that will not compose with parents."""
+
+    def compose(self, parent: LayoutResponse, /) -> Self:
+        return self
+
+
 def layout(request: HttpRequest) -> LayoutResponse:
+    if request.headers.get("hx-target") == "layout":
+        return TerminalLayoutResponse("")
     return LayoutResponse.render(request, "temploco/layout.html")
 
 
@@ -111,9 +120,10 @@ def contacts(request: HttpRequest) -> PartialResponse:
         contacts = contacts.filter(
             Q(first__icontains=search) | Q(last__icontains=search)
         )
-    return PartialResponse.render(
+    response = PartialResponse.render(
         request, "temploco/contacts/index.html", {"contacts": contacts}
     )
+    return response
 
 
 @require_http_methods(["GET", "POST"])
