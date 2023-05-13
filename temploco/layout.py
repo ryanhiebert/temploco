@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Callable, Optional, Any, Self
+from typing import Callable, Optional, Any, Self, Dict
+from functools import wraps
 from dataclasses import dataclass
 from django.http import HttpRequest, HttpResponse
 from django.template import loader
-from django.urls.resolvers import URLPattern, URLResolver
-from django.urls import path, re_path, include
+import django.urls.resolvers
+import django.urls
 
 
 class LayoutResponse:
@@ -95,6 +96,73 @@ class PartialResponse:
         )
 
 
+class LayoutURLResolver(django.urls.resolvers.URLResolver):
+    """Automatically combine partial and layout responses."""
+
+    layout = Optional[Callable[..., LayoutResponse]]
+
+    def __init__(
+        self,
+        pattern: Any,
+        urlconf_name: Optional[str],
+        default_kwargs: Optional[Dict[str, Any]] = None,
+        app_name: Optional[str] = None,
+        namespace: Optional[str] = None,
+        *,
+        layout: Optional[Callable[..., LayoutResponse]] = None,
+    ) -> None:
+        super().__init__(pattern, urlconf_name, default_kwargs, app_name, namespace)
+        self.layout = layout
+
+    def __layout_func(self, func: Callable[..., Any]) -> Callable[..., Any]:
+        if not self.layout:
+            return func
+
+        @wraps(func)
+        def layout_func(*args: Any, **kwargs: Any):
+            response = func(*args, **kwargs)
+            if isinstance(response, PartialResponse):
+                layout_response = response.layout
+                if not layout_response and self.layout:
+                    # TODO: Call with partial args
+                    layout_response = self.layout(*args, **kwargs)
+                respo
+                if layout:
+                    layout_response = layout(*args, **kwargs)
+                response = HttpResponse(
+                    content=layout_response.fill(response.content),
+                )
+
+        return layout_func
+
+    def __create_view(
+        self, layout: Callable[..., LayoutResponse], /
+    ) -> Callable[..., HttpResponse]:
+        view = self.__view
+        if not view:
+            raise Exception("No view given for this path.")
+
+        def routeview(request: HttpRequest, **kwargs: Any) -> HttpResponse:
+            response = view(request, **kwargs)
+            if isinstance(response, PartialResponse):
+                layout_response = response.layout or layout(request, **kwargs)
+                response = HttpResponse(
+                    content=layout_response.fill(response.content),
+                    content_type=response.content_type,
+                    status=response.status,
+                    charset=response.charset,
+                    headers=response.headers,
+                )
+            return response
+
+        return routeview
+
+    def resolve(self, path: str) -> django.urls.resolvers.ResolverMatch:
+        resolved = super().resolve(path)
+        resolved.func = self.__layout_func(resolved.func)
+        return resolved
+
+
 class Route:
     def __init__(
         self,
@@ -118,8 +186,13 @@ class Route:
         full_path: str,
         resolve_layout: Callable[..., LayoutResponse],
     ) -> Callable[..., LayoutResponse]:
-        urlpattern = re_path(r".*", lambda *a, **kw: HttpResponse())
-        urlresolver = re_path(r"^/", include([path(full_path, include([urlpattern]))]))
+        urlpattern = django.urls.re_path(r".*", lambda *a, **kw: HttpResponse())
+        urlresolver = django.urls.re_path(
+            r"^/",
+            django.urls.include(
+                [django.urls.path(full_path, django.urls.include([urlpattern]))]
+            ),
+        )
 
         def resolve(request: HttpRequest, **kwargs: Any) -> LayoutResponse:
             layout = resolve_layout(request, **kwargs)
@@ -157,7 +230,7 @@ class Route:
         *,
         parent_path: str = "",
         resolve_parent: Optional[Callable[..., LayoutResponse]] = None,
-    ) -> URLPattern | URLResolver:
+    ) -> django.urls.resolvers.URLPattern | django.urls.resolvers.URLResolver:
         """Construct the path to include in the URLConf."""
         full_path = parent_path + self.__path
         resolve_parent = resolve_parent or (lambda *a, **kw: LayoutResponse())
@@ -167,13 +240,15 @@ class Route:
                 child.path(parent_path=full_path, resolve_parent=resolve)
                 for child in self.__children
             ]
-            return path(self.__path, include(child_paths))
+            return django.urls.path(self.__path, django.urls.include(child_paths))
         if not self.__name:
             # Routes with children don't need to be reversed, but routes
             # without children might need to be. Since we construct an
             # internal view, there's no view function to reverse with.
             raise Exception("name required for routes without children.")
-        return path(self.__path, self.__create_view(resolve), name=self.__name)
+        return django.urls.path(
+            self.__path, self.__create_view(resolve), name=self.__name
+        )
 
 
 ############
